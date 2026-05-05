@@ -155,7 +155,19 @@ Score Reason: [Reason from Groq]
 
 ---
 
-## Screenshots
+**Test Payload (HOT lead):**
+```json
+{
+  "name": "James Calloway",
+  "email": "test@example.com",
+  "project_type": "Custom Home Build",
+  "budget_range": "$900k - $1.2M",
+  "timeline": "Permits submitted, break ground in 60 days",
+  "message": "Financing approved, signed lot in Wilden. Ready to sign a contract this month."
+}
+```
+
+## Screenshot of Test run (HOT Lead)
 
 ### Full Canvas
 ![Canvas](screenshots/canvas-overview.png)
@@ -203,18 +215,6 @@ Score Reason: [Reason from Groq]
    - `YOUR_HOT_SECTION_GID` and `YOUR_WARM_SECTION_GID` in the respective Asana nodes
    - `YOUR_SLACK_WEBHOOK_URL` in both Slack node URL fields
 4. Activate the webhook and test using the payload below
-
-**Test Payload (HOT lead):**
-```json
-{
-  "name": "James Calloway",
-  "email": "test@example.com",
-  "project_type": "Custom Home Build",
-  "budget_range": "$900k - $1.2M",
-  "timeline": "Permits submitted, break ground in 60 days",
-  "message": "Financing approved, signed lot in Wilden. Ready to sign a contract this month."
-}
-```
 
 ---
 
