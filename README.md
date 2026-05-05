@@ -114,7 +114,7 @@ Each task includes the lead's full contact details, AI-generated summary, score
 reason, and original message in the task notes, giving the sales team full context
 without opening a second tool.
 
-\`\`\`json
+'''json
 {
   "data": {
     "name": "HOT LEAD: [Client Name] - [Project Type]",
@@ -128,7 +128,7 @@ without opening a second tool.
     ]
   }
 }
-\`\`\`
+'''
 
 ---
 
