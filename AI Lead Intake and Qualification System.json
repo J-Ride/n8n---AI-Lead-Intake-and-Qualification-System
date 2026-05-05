@@ -1,0 +1,551 @@
+{
+  "name": "AI Lead Intake and Qualification System",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-intake",
+        "options": {
+          "responseHeaders": {
+            "entries": []
+          }
+        }
+      },
+      "id": "2e596b5c-2ea8-4ff5-ac62-0691fb81a664",
+      "name": "Lead Intake Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        144
+      ],
+      "webhookId": "b2c3d4e5-f6a7-8901-bcde-f23456789012"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer GROQ-API-KEY"
+            },
+            {
+              "name": "content-type",
+              "value": " application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"temperature\": 0.4,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a lead qualification assistant for LUX Quality Homes, a premium custom home builder in Kelowna BC. Return a structured JSON response only, no other text. SCORING RULES - follow these exactly: HOT = budget $700k+ AND timeline within 12 months AND message shows clear intent (financing, signed lot, competitor comparison, ready to sign). WARM = budget $500k-$699k OR timeline 12-24 months OR message shows interest but no urgency. COLD = budget under $500k OR timeline beyond 24 months OR vague inquiry. Return exactly this JSON: {\\\"score\\\": \\\"HOT\\\" or \\\"WARM\\\" or \\\"COLD\\\", \\\"reason\\\": \\\"one sentence referencing the specific rule that applied\\\", \\\"personalized_email_body\\\": \\\"Paragraph 1: acknowledge their specific project type, budget, and timeline. No generic openers.\\\\n\\\\nParagraph 2: establish LUX credibility - high-end custom homes in the Okanagan, white-glove communication, systems-driven process.\\\\n\\\\nParagraph 3: invite them to a 30 minute discovery call.\\\\n\\\\n \\\\n\\\\nParagraph 4: Warm regards,\\\\nBrad\\\\nFounder, LUX Quality Homes\\\", \\\"summary\\\": \\\"2 sentence internal summary for the sales team\\\"}\"\n    },\n    {\n       \"role\": \"user\",\n      \"content\": \"=Qualify this lead:\\nName: {{ $json.body.name }}\\nEmail: {{ $json.body.email }} \\nProject Type: {{ $json.body.project_type }} \\nBudget: {{ $json.body.budget_range }} \\nTimeline: {{ $json.body.timeline }} \\nMessage: {{ $json.body.message }}\"\n\n    }\n  ]\n} ",
+        "options": {}
+      },
+      "id": "810dc990-7239-429a-aa4e-612baa3241c3",
+      "name": "Groq AI Lead Scoring",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -656,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $input.first().json.choices[0].message.content;\nconst cleaned = content\n  .replace(/[\\u0000-\\u001F\\u007F]/g, (char) => {\n    if (char === '\\n') return '\\\\n';\n    if (char === '\\r') return '\\\\r';\n    if (char === '\\t') return '\\\\t';\n    return '';\n  });\nconst parsed = JSON.parse(cleaned);\nreturn [{ json: parsed }];"
+      },
+      "id": "2fdb1e2f-e136-4a17-9625-7a523b53f238",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Lead Intake Webhook').item.json.body.email }}",
+        "subject": "Your LUX Custom Home Project - Let's Connect",
+        "emailType": "text",
+        "message": "={{ $('Parse AI Response').first().json.personalized_email_body }}",
+        "options": {
+          "senderName": "Brad - LUX Quality Homes"
+        }
+      },
+      "id": "e3c9ca5d-5ca0-4caf-ad6a-e767311df51c",
+      "name": "Send HOT Lead Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        16,
+        -96
+      ],
+      "webhookId": "d67fde3a-7f09-48c3-812a-c245c51c3de0",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9O1nrBdKoJHzNuvd",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.asana.com/api/1.0/tasks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer ASANA-API-KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"data\": {\n    \"name\": \"HOT LEAD: {{ $('Lead Intake Webhook').item.json.body.name }} - {{ $('Lead Intake Webhook').item.json.body.project_type }}\",\n    \"notes\": \"LEAD SUMMARY:\\n{{ $('Parse AI Response').first().json.summary }}\\n\\nDETAILS:\\n{{ $('Parse AI Response').first().json.reason }}\\n\\nCONTACT DETAILS:\\nName: {{ $('Lead Intake Webhook').item.json.body.name }}\\nEmail: {{ $('Lead Intake Webhook').item.json.body.email }}\\nBudget: {{ $('Lead Intake Webhook').item.json.body.budget_range }}\\nTimeline: {{ $('Lead Intake Webhook').item.json.body.timeline }}\\nProject: {{ $('Lead Intake Webhook').item.json.body.project_type }}\\n\\nLEAD MESSAGE:\\n{{ $('Lead Intake Webhook').item.json.body.message }}\",\n    \"projects\": [\"1214454616429443\"],\n    \"memberships\": [\n      {\n        \"project\": \"1214454616429443\",\n        \"section\": \"1214454616429444\"\n      }\n    ]\n  }\n}\n  ",
+        "options": {}
+      },
+      "id": "e298a785-c208-43a9-b193-4e9512ae6870",
+      "name": "Create Asana Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "SLACK-APP-URL",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"*HOT LEAD ALERT!*\\n\\n*Name:* {{ $('Lead Intake Webhook').item.json.body.name }}\\n*Email:* {{ $('Lead Intake Webhook').item.json.body.email }}\\n*Project:* {{ $('Lead Intake Webhook').item.json.body.project_type }}\\n*Budget:* {{ $('Lead Intake Webhook').item.json.body.budget_range }}\\n*Timeline:* {{ $('Lead Intake Webhook').item.json.body.timeline }}\\n\\n*AI Summary:* {{ $('Parse AI Response').first().json.summary }}\\n\\n*Score Reason:* {{ $('Parse AI Response').first().json.reason }}\"\n} ",
+        "options": {}
+      },
+      "id": "47d7e72f-3da0-44ed-bbf9-7ebde8ed22e3",
+      "name": "Send Slack Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        464,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Lead Intake Webhook').item.json.body.email }}",
+        "subject": "Thank You for Reaching Out to LUX Quality Homes",
+        "emailType": "text",
+        "message": "={{ $('Parse AI Response').first().json.personalized_email_body }}",
+        "options": {
+          "senderName": "Brad - LUX Quality Homes"
+        }
+      },
+      "id": "1c7f3308-87e9-4882-bcb4-a5326b69720f",
+      "name": "Send WARM Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        16,
+        144
+      ],
+      "webhookId": "55a1c347-717e-4e95-902a-5904dac58765",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9O1nrBdKoJHzNuvd",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.asana.com/api/1.0/tasks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer ASANA-API-KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"data\": {\n    \"name\": \"WARM LEAD: {{ $('Lead Intake Webhook').item.json.body.name }} - {{ $('Lead Intake Webhook').item.json.body.project_type }}\",\n    \"notes\": \"LEAD SUMMARY:\\n{{ $('Parse AI Response').first().json.summary }}\\n\\nDETAILS:\\n{{ $('Parse AI Response').first().json.reason }}\\n\\nCONTACT DETAILS:\\nName: {{ $('Lead Intake Webhook').item.json.body.name }}\\nEmail: {{ $('Lead Intake Webhook').item.json.body.email }}\\nBudget: {{ $('Lead Intake Webhook').item.json.body.budget_range }}\\nTimeline: {{ $('Lead Intake Webhook').item.json.body.timeline }}\\nProject: {{ $('Lead Intake Webhook').item.json.body.project_type }}\\n\\nLEAD MESSAGE:\\n{{ $('Lead Intake Webhook').item.json.body.message }}\",\n    \"projects\": [\"1214454616429443\"],\n    \"memberships\": [\n      {\n        \"project\": \"1214454616429443\",\n        \"section\": \"1214454616429447\"\n      }\n    ]\n  }\n}",
+        "options": {}
+      },
+      "id": "d332afc8-7e65-43b7-b5cd-8fa19175e716",
+      "name": "Create Asana Task -WARM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "SLACK-APP-URL",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"*WARM LEAD*: \\n\\n*Name:* {{ $('Lead Intake Webhook').item.json.body.name }}\\n*Email:* {{ $('Lead Intake Webhook').item.json.body.email }}\\n*Project:* {{ $('Lead Intake Webhook').item.json.body.project_type }}\\n*Budget:* {{ $('Lead Intake Webhook').item.json.body.budget_range }}\\n*Timeline:* {{ $('Lead Intake Webhook').item.json.body.timeline }}\\n\\n*AI Summary:* {{ $('Parse AI Response').first().json.summary }}\\n\\n*Score Reason:* {{ $('Parse AI Response').first().json.reason }}\"\n} ",
+        "options": {}
+      },
+      "id": "0f35177e-a0b3-4c38-ac4c-d0a35ae7e98a",
+      "name": "Send Slack Alert -WARM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        464,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.score }}",
+                    "rightValue": "HOT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "7a774d15-d106-4981-a781-e33a9f8e5ea6"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "HOT"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "b4220aa2-f7e5-477b-96eb-8f73b121273c",
+                    "leftValue": "={{ $json.score }}",
+                    "rightValue": "WARM",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WARM"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "f2b5ef8e-6d87-4d76-b853-1736c468a22c",
+                    "leftValue": "={{ $json.score }}",
+                    "rightValue": "COLD",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "COLD"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -272,
+        128
+      ],
+      "id": "954fa47e-dbb1-4169-8688-375d5075d528",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Lead Intake Webhook').item.json.body.email }}",
+        "subject": "Thank You for Reaching Out to LUX Quality Homes",
+        "emailType": "text",
+        "message": "={{ $('Parse AI Response').first().json.personalized_email_body }}",
+        "options": {
+          "senderName": "Brad - LUX Quality Homes"
+        }
+      },
+      "id": "6d8c07a7-c86f-4ab5-b4fd-8e33756cadbb",
+      "name": "Send COLD Email1",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        16,
+        384
+      ],
+      "webhookId": "55a1c347-717e-4e95-902a-5904dac58765",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9O1nrBdKoJHzNuvd",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.asana.com/api/1.0/tasks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer ASANA-API-KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"data\": {\n    \"name\": \"COLD LEAD: {{ $('Lead Intake Webhook').item.json.body.name }} - {{ $('Lead Intake Webhook').item.json.body.project_type }}\",\n    \"notes\": \"LEAD SUMMARY:\\n{{ $('Parse AI Response').first().json.summary }}\\n\\nDETAILS:\\n{{ $('Parse AI Response').first().json.reason }}\\n\\nCONTACT DETAILS:\\nName: {{ $('Lead Intake Webhook').item.json.body.name }}\\nEmail: {{ $('Lead Intake Webhook').item.json.body.email }}\\nBudget: {{ $('Lead Intake Webhook').item.json.body.budget_range }}\\nTimeline: {{ $('Lead Intake Webhook').item.json.body.timeline }}\\nProject: {{ $('Lead Intake Webhook').item.json.body.project_type }}\\n\\nLEAD MESSAGE:\\n{{ $('Lead Intake Webhook').item.json.body.message }}\",\n    \"projects\": [\"1214454616429443\"],\n    \"memberships\": [\n      {\n        \"project\": \"1214454616429443\",\n        \"section\": \"1214454616429450\"\n      }\n    ]\n  }\n}",
+        "options": {}
+      },
+      "id": "78c27db6-90fe-4767-905a-ba0ecac13df5",
+      "name": "Create Asana Task - COLD",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "SLACK-APP-URL",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"*COLD LEAD*: \\n\\n*Name:* {{ $('Lead Intake Webhook').item.json.body.name }}\\n*Email:* {{ $('Lead Intake Webhook').item.json.body.email }}\\n*Project:* {{ $('Lead Intake Webhook').item.json.body.project_type }}\\n*Budget:* {{ $('Lead Intake Webhook').item.json.body.budget_range }}\\n*Timeline:* {{ $('Lead Intake Webhook').item.json.body.timeline }}\\n\\n*AI Summary:* {{ $('Parse AI Response').first().json.summary }}\\n\\n*Score Reason:* {{ $('Parse AI Response').first().json.reason }}\"\n} ",
+        "options": {}
+      },
+      "id": "f55cad1b-bfc9-4a90-84b7-a2cbe29e3bbc",
+      "name": "Send Slack Alert -COLD",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        464,
+        384
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Lead Intake Webhook": {
+      "main": [
+        [
+          {
+            "node": "Groq AI Lead Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq AI Lead Scoring": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send HOT Lead Email": {
+      "main": [
+        [
+          {
+            "node": "Create Asana Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Asana Task": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WARM Email": {
+      "main": [
+        [
+          {
+            "node": "Create Asana Task -WARM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Asana Task -WARM": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Alert -WARM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Send HOT Lead Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send WARM Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send COLD Email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send COLD Email1": {
+      "main": [
+        [
+          {
+            "node": "Create Asana Task - COLD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Asana Task - COLD": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Alert -COLD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "411886b5-f06e-420b-a419-a63c945e8d98",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4458e802ae11478e5980114e5de6d98fc23b664b5efdf06bacc1a0b9d64d9a94"
+  },
+  "id": "nVwh8586X7rmjDfn",
+  "tags": []
+}
